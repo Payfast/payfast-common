@@ -1,16 +1,23 @@
 # Changelog
 
+## [1.4.2](https://github.com/Payfast/payfast-common/releases/tag/v1.4.2)
+
+### Fixed
+
+- **Aggregation**: Debug output is now kept with the server logs.
+
 ## [1.4.1](https://github.com/Payfast/payfast-common/releases/tag/v1.4.1)
 
 ### Fixed
 
-- **Aggregator**: Enhanced the `pflog()` function to resolve the invalid stream resource error, improving stability and error handling.
+- **Aggregator**: Enhanced the `pflog()` function to resolve the invalid stream resource error, improving stability and
+  error handling.
 
 ## [1.4.0](https://github.com/Payfast/payfast-common/releases/tag/v1.4.0)
 
 ### Added
 
-- Improve Aggregator **createTransaction()** to accept **$returnForm** parameter to make it easier to debug custom
+- Improve Aggregator **createTransaction ()** to accept **$returnForm** parameter to make it easier to debug custom
   integration forms.
 
 ## [1.3.1](https://github.com/Payfast/payfast-common/releases/tag/v1.3.1)
@@ -23,13 +30,14 @@
 
 ### Added
 
-- Improve Aggregator **placeRequest()** to accept **$returnCurlRequest** parameter to make it easier to debug API calls.
+- Improve Aggregator **placeRequest ()** to accept **$returnCurlRequest** parameter to make it easier to debug API
+  calls.
 
 ## [1.2.2](https://github.com/Payfast/payfast-common/releases/tag/v1.2.2)
 
 ### Improved
 
-- Amend **placeRequest()** to accept **timestamp** and **version** if sent in **$body**.
+- Amend **placeRequest ()** to accept **timestamp** and **version** if sent in **$body**.
 - Empty **$body** if **action** is set. This is used for **Query/Retrieve Refund**.
 
 ### Removed
