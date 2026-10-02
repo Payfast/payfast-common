@@ -30,9 +30,10 @@ class PaymentRequest
     public const PF_MSG_OK      = 'Payment was successful';
     public const PF_MSG_FAILED  = 'Payment has failed';
     public const PF_MSG_PENDING = 'The payment is pending. Please note, you will receive another Instant' .
-    ' Transaction Notification when the payment status changes to' .
-    ' "Completed", or "Failed"';
+                                  ' Transaction Notification when the payment status changes to' .
+                                  ' "Completed", or "Failed"';
     private bool $debugMode;
+    private ?string $resolvedLogDirectory = null;
 
     /**
      * @param bool $debugMode
@@ -55,7 +56,7 @@ class PaymentRequest
         array $moduleInfo,
         string $pfHost = 'www.payfast.co.za',
         string $pfParamString = ''
-    ): bool{
+    ): bool {
         $pfFeatures = 'PHP ' . phpversion() . ';';
         $pfCurl     = false;
 
@@ -69,9 +70,9 @@ class PaymentRequest
         }
 
         $pfUserAgent = $moduleInfo["pfSoftwareName"] . '/' . $moduleInfo['pfSoftwareVer'] .
-            ' (' . trim(
-                $pfFeatures
-            ) . ') ' . $moduleInfo["pfSoftwareModuleName"] . '/' . $moduleInfo["pfModuleVer"];
+                       ' (' . trim(
+                           $pfFeatures
+                       ) . ') ' . $moduleInfo["pfSoftwareModuleName"] . '/' . $moduleInfo["pfModuleVer"];
 
         $this->pflog('Host = ' . $pfHost);
         $this->pflog('Params = ' . $pfParamString);
@@ -168,13 +169,31 @@ class PaymentRequest
             } else {
                 // If file doesn't exist or is not a valid resource, create it
                 if (!$fh || !is_resource($fh)) {
-                    $pathInfo = pathinfo(__FILE__);
-                    $fh       = fopen($pathInfo['dirname'] . '/payfast.log', 'a+');
+                    $logDirectory = $this->getLogDirectory();
+                    $logPath      = $logDirectory ? $logDirectory . '/payfast.log' : '';
+
+                    if ($logPath !== '') {
+                        $previousUmask = umask(0077);
+
+                        try {
+                            $fh = fopen($logPath, 'ab');
+                        } finally {
+                            umask($previousUmask);
+                        }
+
+                        if ($fh !== false && !chmod($logPath, 0600)) {
+                            fclose($fh);
+                            $fh = false;
+                        }
+                    } else {
+                        $fh = false;
+                    }
                 }
 
                 // After attempting to open the file
                 if ($fh === false) {
                     error_log('Failed to open payfast.log for writing');
+
                     return;
                 }
 
@@ -190,6 +209,79 @@ class PaymentRequest
                 }
             }
         }
+    }
+
+    /**
+     * Resolve the log directory once per instance, since it can't change during a request.
+     *
+     * @return string The writable directory, or an empty string if none could be found.
+     */
+    private function getLogDirectory(): string
+    {
+        if ($this->resolvedLogDirectory === null) {
+            $this->resolvedLogDirectory = $this->resolveLogDirectory();
+        }
+
+        return $this->resolvedLogDirectory;
+    }
+
+    /**
+     * Determine a writable directory outside of the web root to store the debug log in.
+     *
+     * Preference order:
+     * - one level above the web application's document root
+     * - /var/log
+     *
+     * @return string The writable directory, or an empty string if none could be found.
+     */
+    public function resolveLogDirectory(): string
+    {
+        $candidates   = [];
+        $documentRoot = !empty($_SERVER['DOCUMENT_ROOT']) ? realpath($_SERVER['DOCUMENT_ROOT']) : false;
+
+        if ($documentRoot !== false) {
+            $candidates[] = dirname($documentRoot);
+        }
+
+        $candidates[] = '/var/log';
+
+        foreach ($candidates as $candidate) {
+            $resolvedCandidate = $candidate !== '' ? realpath($candidate) : false;
+
+            if ($resolvedCandidate === false || !is_dir($resolvedCandidate) || !is_writable($resolvedCandidate)) {
+                continue;
+            }
+
+            if ($documentRoot !== false) {
+                $documentRootPrefix = rtrim($documentRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+
+                if ($resolvedCandidate === $documentRoot || str_starts_with($resolvedCandidate, $documentRootPrefix)) {
+                    continue;
+                }
+
+                $candidatePrefix       = rtrim($resolvedCandidate, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+                $hostDocumentRootNames = [
+                    'public_html',
+                    'private_html',
+                    'public',
+                    'html',
+                    'httpdocs',
+                    'httpsdocs',
+                    'htdocs',
+                    'wwwroot',
+                ];
+
+                if (str_starts_with($documentRoot, $candidatePrefix)
+                    && in_array(strtolower(basename($resolvedCandidate)), $hostDocumentRootNames, true)
+                ) {
+                    continue;
+                }
+            }
+
+            return $resolvedCandidate;
+        }
+
+        return '';
     }
 
     /**
@@ -347,7 +439,7 @@ class PaymentRequest
         $passphrase = null,
         bool $testMode = false,
         bool $returnCurlRequest = false
-    ): string{
+    ): string {
         $url = "https://api.payfast.co.za/subscriptions/$token/$action";
 
         if ($testMode) {
@@ -386,7 +478,7 @@ class PaymentRequest
         array $data = [],
         bool $testMode = false,
         bool $returnCurlRequest = false
-    ): string{
+    ): string {
         $url    = "https://api.payfast.co.za/refunds/";
         $method = "GET";
 
@@ -435,7 +527,7 @@ class PaymentRequest
         array $body = [],
         $method = null,
         bool $returnCurlRequest = false
-    ): string{
+    ): string {
         $date      = date("Y-m-d");
         $time      = date("H:i:s");
         $timeStamp = $body['timestamp'] ?? $date . "T" . $time;
